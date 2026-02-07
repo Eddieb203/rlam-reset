@@ -1,0 +1,184 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Set Your Password</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+    .card { max-width: 560px; padding: 1.25rem; border: 1px solid #e5e7eb; border-radius: 12px; }
+    input, button { width: 100%; padding: .7rem; margin: .35rem 0; box-sizing: border-box; }
+    label { font-size: .95rem; font-weight: 600; margin-top: .25rem; display: block; }
+    .row { display: flex; align-items: center; gap: .5rem; }
+    .ok { color: #16a34a; margin-top: .4rem; }
+    .err { color: #dc2626; margin-top: .4rem; }
+    .muted { color: #6b7280; font-size: .9rem; margin-top: .4rem; }
+    .small { font-size: .85rem; color: #6b7280; }
+    button[disabled] { opacity: .6; cursor: not-allowed; }
+    hr { border: 0; height: 1px; background: #e5e7eb; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h2 id="title">Set your password</h2>
+  <div class="card">
+    <div class="muted" id="intro">Enter your email and the 6-digit code from the email, verify, then set a new password.</div>
+
+    <!-- Step 1: Verify email + code -->
+    <label for="vEmail">Email</label>
+    <input id="vEmail" type="email" placeholder="you@example.com" />
+
+    <label for="vCode">6-digit code</label>
+    <input id="vCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
+
+    <button id="verifyBtn">Verify code</button>
+    <div id="verifyMsg" class="muted"></div>
+
+    <hr />
+
+    <!-- Step 2: Set new password (disabled until verified) -->
+    <label for="pw">New password <span class="small">(min 6)</span></label>
+    <div class="row">
+      <input id="pw" type="password" placeholder="New password" disabled />
+      <input id="showPw" type="checkbox" />
+      <span class="small">Show</span>
+    </div>
+
+    <label for="pw2">Confirm new password</label>
+    <div class="row">
+      <input id="pw2" type="password" placeholder="Confirm new password" disabled />
+      <input id="showPw2" type="checkbox" />
+      <span class="small">Show</span>
+    </div>
+
+    <button id="apply" disabled>Save</button>
+    <div id="msg" class="muted"></div>
+
+    <!-- Resend code -->
+    <div id="resend">
+      <hr />
+      <label for="emailResend">Need a new code? Enter your email:</label>
+      <input id="emailResend" type="email" placeholder="you@example.com" />
+      <button id="send">Send code</button>
+      <div id="resendMsg" class="muted"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+  <script>
+    // -- Your project values --
+   // -- RLAM project values --
+   const SUPABASE_URL = "https://kepcwaxzstvfqtizqjnf.supabase.co";
+   const SUPABASE_ANON_KEY =    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcGN3YXh6c3R2ZnF0aXpxa m5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0MTE4MjUsImV4cCI6MjA4NTk4NzgyNX0.1c0SL5rzKm5lrzbU5gQ1D9bEcEUz43Qv3xDifbx6zAA";
+   const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ✅ Robust helper: accepts "id" or "#id" / ".class"
+    function $(q) {
+      if (!q) return null;
+      if (q[0] === '#' || q[0] === '.') return document.querySelector(q);
+      return document.getElementById(q) || document.querySelector('#' + q);
+    }
+
+    function bindShow(inputId, checkId) {
+      const el = $(inputId), box = $(checkId);
+      if (el && box) box.onchange = e => el.type = e.target.checked ? "text" : "password";
+    }
+    function enablePw(on) {
+      $("#pw").disabled  = !on;
+      $("#pw2").disabled = !on;
+      $("#apply").disabled = !on;
+    }
+
+    // Prefill from URL (optional)
+    const url = new URL(window.location.href);
+    const qp  = (k) => url.searchParams.get(k);
+    if (qp("email")) $("#vEmail").value = qp("email");
+    if (qp("code"))  $("#vCode").value  = qp("code");
+
+    // Show script errors inline
+    window.addEventListener("error", (e) => { $("#msg").className = "err"; $("#msg").textContent = "Error: " + e.message; });
+    window.addEventListener("unhandledrejection", (e) => { $("#msg").className = "err"; $("#msg").textContent = "Error: " + (e.reason?.message || e.reason); });
+
+    // Wire UI
+    bindShow("pw","showPw"); bindShow("pw2","showPw2");
+    $("#verifyBtn").onclick = verifyCode;
+    $("#apply").onclick = updatePassword;
+    $("#send").onclick  = resend;
+
+    console.debug('hooked verify?', !!$("#verifyBtn"));
+    console.debug('hooked save?', !!$("#apply"));
+
+    async function verifyCode() {
+      const email = $("#vEmail").value.trim().toLowerCase();
+      const code  = $("#vCode").value.trim();
+      const out   = $("#verifyMsg");
+    
+      if (!email) { out.className = "err"; out.textContent = "Enter your email."; return; }
+      if (!code || code.length < 6) { out.className = "err"; out.textContent = "Enter the 6-digit code."; return; }
+    
+      out.className = "muted"; out.textContent = "Verifying…";
+    
+      // Try confirmation first (signup), then reset (recovery)
+      let { error } = await client.auth.verifyOtp({ email, token: code, type: 'signup' });
+      if (error) {
+        ({ error } = await client.auth.verifyOtp({ email, token: code, type: 'recovery' }));
+      }
+      if (error) {
+        out.className = "err";
+        out.textContent = "Verification failed: " + error.message;
+        enablePw(false);
+        return;
+      }
+    
+      out.className = "ok";
+      out.textContent = "Code verified. You can set a new password below.";
+      $("#intro").textContent = `Set a new password for ${email}`;
+      enablePw(true);
+    
+      // Clean URL
+      try {
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete("code"); clean.searchParams.delete("email");
+        history.replaceState({}, "", clean.toString());
+      } catch {}
+    }
+    
+
+    async function updatePassword() {
+      const msg = $("#msg");
+      msg.className = "muted"; msg.textContent = "Saving…";
+
+      const { data: { session } } = await client.auth.getSession();
+      if (!session?.access_token) {
+        msg.className = "err";
+        msg.textContent = "No verified session. Verify your code first.";
+        enablePw(false);
+        return;
+      }
+
+      const pw = $("#pw").value.trim();
+      const p2 = $("#pw2").value.trim();
+      if (pw.length < 6) { msg.className = "err"; msg.textContent = "Password must be at least 6 characters."; return; }
+      if (pw !== p2)     { msg.className = "err"; msg.textContent = "Passwords do not match."; return; }
+
+      const { error } = await client.auth.updateUser({ password: pw });
+      if (error) { msg.className = "err"; msg.textContent = "Auth error: " + error.message; return; }
+
+      await client.auth.signOut();
+      msg.className = "ok";
+      msg.textContent = "Saved. You can close this tab and sign in with your new password.";
+      enablePw(false);
+    }
+
+    async function resend() {
+      const out = $("#resendMsg");
+      const email = $("#emailResend").value.trim();
+      if (!email) { out.className = "err"; out.textContent = "Enter your email."; return; }
+      out.className = "muted"; out.textContent = "Sending…";
+      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: REDIRECT_URL });
+      if (error) { out.className = "err"; out.textContent = "Error: " + error.message; return; }
+      out.className = "ok"; out.textContent = "Code sent. Check your inbox for a 6-digit code.";
+    }
+  </script>
+</body>
+</html>
