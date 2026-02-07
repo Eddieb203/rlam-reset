@@ -7,23 +7,33 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; background:#fff; }
+    h2 { margin: 0 0 12px 0; }
     .card { max-width: 560px; padding: 1.25rem; border: 1px solid #e5e7eb; border-radius: 12px; }
+    label { font-size: .95rem; font-weight: 600; margin-top: .6rem; display: block; }
     input, button { width: 100%; padding: .7rem; margin: .35rem 0; box-sizing: border-box; }
-    label { font-size: .95rem; font-weight: 600; margin-top: .25rem; display: block; }
-    .row { display: flex; align-items: center; gap: .5rem; }
+
+    .row { display: flex; align-items: center; gap: .75rem; }
+    .row input[type="password"], .row input[type="text"] { flex: 1; }
+    .row .toggle { display:flex; align-items:center; gap:.35rem; white-space: nowrap; }
+    .row .toggle input { width: auto; margin: 0; }
+
     .ok { color: #16a34a; margin-top: .4rem; }
     .err { color: #dc2626; margin-top: .4rem; }
     .muted { color: #6b7280; font-size: .9rem; margin-top: .4rem; }
     .small { font-size: .85rem; color: #6b7280; }
     button[disabled] { opacity: .6; cursor: not-allowed; }
-    hr { border: 0; height: 1px; background: #e5e7eb; margin: 12px 0; }
+
+    hr { border: 0; height: 1px; background: #e5e7eb; margin: 14px 0; }
   </style>
 </head>
 <body>
   <h2 id="title">Set your password</h2>
+
   <div class="card">
-    <div class="muted" id="intro">Enter your email and the 6-digit code from the email, verify, then set a new password.</div>
+    <div class="muted" id="intro">
+      Enter your email and the code from the email, verify, then set a new password.
+    </div>
 
     <!-- Step 1: Verify email + code -->
     <label for="vEmail">Email</label>
@@ -31,7 +41,6 @@
 
     <label for="vCode">Code</label>
     <input id="vCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Enter code" />
-
 
     <button id="verifyBtn">Verify code</button>
     <div id="verifyMsg" class="muted"></div>
@@ -42,15 +51,19 @@
     <label for="pw">New password <span class="small">(min 6)</span></label>
     <div class="row">
       <input id="pw" type="password" placeholder="New password" disabled />
-      <input id="showPw" type="checkbox" />
-      <span class="small">Show</span>
+      <label class="toggle">
+        <input id="showPw" type="checkbox" />
+        <span class="small">Show</span>
+      </label>
     </div>
 
     <label for="pw2">Confirm new password</label>
     <div class="row">
       <input id="pw2" type="password" placeholder="Confirm new password" disabled />
-      <input id="showPw2" type="checkbox" />
-      <span class="small">Show</span>
+      <label class="toggle">
+        <input id="showPw2" type="checkbox" />
+        <span class="small">Show</span>
+      </label>
     </div>
 
     <button id="apply" disabled>Save</button>
@@ -68,12 +81,13 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
   <script>
-    // -- Your project values --
-   // -- RLAM project values --
+    // RLAM project values (IMPORTANT: your ANON KEY must NOT contain spaces)
     const SUPABASE_URL = "https://kepcwaxzstvfqtizqjnf.supabase.co";
-    const SUPABASE_ANON_KEY ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcGN3YXh6c3R2ZnF0aXpxa m5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0MTE4MjUsImV4cCI6MjA4NTk4NzgyNX0.1c0SL5rzKm5lrzbU5gQ1D9bEcEUz43Qv3xDifbx6zAA";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcGN3YXh6c3R2ZnF0aXpxam5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0MTE4MjUsImV4cCI6MjA4NTk4NzgyNX0.1c0SL5rzKm5lrzbU5gQ1D9bEcEUz43Qv3xDifbx6zAA";
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const REDIRECT_URL = "https://eddieb203.github.io/rlam-reset/"; 
+
+    const REDIRECT_URL = "https://eddieb203.github.io/rlam-reset/";
+
     // ✅ Robust helper: accepts "id" or "#id" / ".class"
     function $(q) {
       if (!q) return null;
@@ -107,19 +121,16 @@
     $("#apply").onclick = updatePassword;
     $("#send").onclick  = resend;
 
-    console.debug('hooked verify?', !!$("#verifyBtn"));
-    console.debug('hooked save?', !!$("#apply"));
-
     async function verifyCode() {
       const email = $("#vEmail").value.trim().toLowerCase();
       const code  = $("#vCode").value.trim();
       const out   = $("#verifyMsg");
-    
+
       if (!email) { out.className = "err"; out.textContent = "Enter your email."; return; }
-      if (!code || code.length < 6) { out.className = "err"; out.textContent = "Enter the 6-digit code."; return; }
-    
+      if (!code || code.length < 6) { out.className = "err"; out.textContent = "Enter the code from the email."; return; }
+
       out.className = "muted"; out.textContent = "Verifying…";
-    
+
       // Try confirmation first (signup), then reset (recovery)
       let { error } = await client.auth.verifyOtp({ email, token: code, type: 'signup' });
       if (error) {
@@ -131,12 +142,12 @@
         enablePw(false);
         return;
       }
-    
+
       out.className = "ok";
       out.textContent = "Code verified. You can set a new password below.";
       $("#intro").textContent = `Set a new password for ${email}`;
       enablePw(true);
-    
+
       // Clean URL
       try {
         const clean = new URL(window.location.href);
@@ -144,7 +155,6 @@
         history.replaceState({}, "", clean.toString());
       } catch {}
     }
-    
 
     async function updatePassword() {
       const msg = $("#msg");
@@ -177,9 +187,12 @@
       const email = $("#emailResend").value.trim();
       if (!email) { out.className = "err"; out.textContent = "Enter your email."; return; }
       out.className = "muted"; out.textContent = "Sending…";
+
       const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: REDIRECT_URL });
       if (error) { out.className = "err"; out.textContent = "Error: " + error.message; return; }
-      out.className = "ok"; out.textContent = "Code sent. Check your inbox for a 6-digit code.";
+
+      out.className = "ok";
+      out.textContent = "Email sent. Use the code in the email, then verify above.";
     }
   </script>
 </body>
