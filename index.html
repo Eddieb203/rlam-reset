@@ -29,8 +29,9 @@
     <label for="vEmail">Email</label>
     <input id="vEmail" type="email" placeholder="you@example.com" />
 
-    <label for="vCode">6-digit code</label>
-    <input id="vCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
+    <label for="vCode">Code</label>
+    <input id="vCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Enter code" />
+
 
     <button id="verifyBtn">Verify code</button>
     <div id="verifyMsg" class="muted"></div>
@@ -72,6 +73,7 @@
    const SUPABASE_URL = "https://kepcwaxzstvfqtizqjnf.supabase.co";
    const SUPABASE_ANON_KEY =    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcGN3YXh6c3R2ZnF0aXpxa m5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0MTE4MjUsImV4cCI6MjA4NTk4NzgyNX0.1c0SL5rzKm5lrzbU5gQ1D9bEcEUz43Qv3xDifbx6zAA";
    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+   const REDIRECT_URL = "https://eddieb203.github.io/rlam-reset/"; 
     // ✅ Robust helper: accepts "id" or "#id" / ".class"
     function $(q) {
       if (!q) return null;
